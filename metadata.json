@@ -1,0 +1,6 @@
+{
+  "name": "FinPilot - Autonomous Financial Decision Agent",
+  "description": "Autonomous personal finance decision-support agent with deterministic mathematical engine, subscription bleed detection, counterfactual purchase simulation, and transparent agent reasoning.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
