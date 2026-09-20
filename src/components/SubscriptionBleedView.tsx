@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { AlertTriangle, Clock, RefreshCw, Calendar, TrendingUp, CheckCircle, ShieldAlert, ChevronDown, ChevronUp } from "lucide-react";
+import React from "react";
+import { AlertTriangle, Clock, RefreshCw, Calendar, TrendingUp, CheckCircle, ShieldAlert } from "lucide-react";
 import { RecurringAnalysis } from "../types";
 
 interface SubscriptionBleedViewProps {
@@ -8,8 +8,6 @@ interface SubscriptionBleedViewProps {
 }
 
 export const SubscriptionBleedView: React.FC<SubscriptionBleedViewProps> = ({ recurring, loading }) => {
-  const [showMath, setShowMath] = useState(false);
-
   if (loading || !recurring) {
     return (
       <div className="space-y-4">
@@ -90,25 +88,10 @@ export const SubscriptionBleedView: React.FC<SubscriptionBleedViewProps> = ({ re
             <Calendar className="w-4 h-4 text-slate-700" />
             <span>Upcoming Committed Bills (Rent, Utilities & Subscriptions)</span>
           </h3>
-          <button
-            onClick={() => setShowMath(!showMath)}
-            className="inline-flex items-center space-x-1 text-[11px] text-slate-500 hover:text-slate-700 font-medium"
-          >
-            <span>⚙️ View math breakdown</span>
-            {showMath ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-          </button>
         </div>
         <p className="text-xs text-slate-500 mb-4">
           Cash that is already spoken for so you never get caught short:
         </p>
-
-        {showMath && (
-          <div className="mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600 space-y-1">
-            <div><strong>15-Day Committed:</strong> Sept 1 Rent ($1,800.00) + Gym ($75.00) + Electric ($145.20) = $2,020.20</div>
-            <div><strong>30-Day Committed:</strong> All monthly recurring subscriptions ($131.96) + Rent ($1,800.00) + Avg Utilities ($275.00) = $2,206.96</div>
-            <div><strong>Annualized Creep:</strong> (New Monthly Cost - Old Monthly Cost) × 12 months</div>
-          </div>
-        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">

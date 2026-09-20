@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Sparkles, ArrowRight, Target, Laptop, ChevronDown, ChevronUp } from "lucide-react";
+import React from "react";
+import { Sparkles, ArrowRight, Target, Laptop } from "lucide-react";
 import { OpportunityCostResult } from "../types";
 
 interface LifeValueTranslatorViewProps {
@@ -11,8 +11,6 @@ export const LifeValueTranslatorView: React.FC<LifeValueTranslatorViewProps> = (
   opportunity,
   loading
 }) => {
-  const [showMath, setShowMath] = useState(false);
-
   if (loading || !opportunity) {
     return (
       <div className="space-y-4">
@@ -38,27 +36,12 @@ export const LifeValueTranslatorView: React.FC<LifeValueTranslatorViewProps> = (
             </p>
           </div>
           <div className="flex items-center space-x-3">
-            <button
-              onClick={() => setShowMath(!showMath)}
-              className="inline-flex items-center space-x-1 text-xs text-slate-500 hover:text-slate-800 bg-slate-100 px-2.5 py-1.5 rounded-lg transition-colors"
-            >
-              <span>⚙️ View math breakdown</span>
-              {showMath ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </button>
             <div className="bg-emerald-50 text-emerald-950 border border-emerald-200 px-3 py-2 rounded-lg text-xs">
               <div className="font-bold">Total Subscription Cost: ${opportunity.total_subscription_bleed_monthly.toFixed(2)}/mo</div>
               <div className="text-emerald-700 font-medium">${opportunity.annualized_leak.toFixed(2)}/year you could redirect</div>
             </div>
           </div>
         </div>
-
-        {showMath && (
-          <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600 space-y-1">
-            <div><strong>Annualized Savings:</strong> Monthly Saved Amount × 12 months</div>
-            <div><strong>Weeks Saved:</strong> (Target Goal Balance Remaining ÷ Monthly Reallocation) × 4.33 weeks</div>
-            <div><strong>Goal Benchmark:</strong> New Laptop ($1,500.00) with $650.00 left to save.</div>
-          </div>
-        )}
       </div>
 
       {/* Target Milestone Status Card */}

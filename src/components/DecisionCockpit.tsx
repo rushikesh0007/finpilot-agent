@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { Send, Bot, User, ChevronDown, ChevronUp, Cpu, Database, CheckCircle2, AlertTriangle, Sparkles, Terminal } from "lucide-react";
-import { ChatMessage, AuditTrace } from "../types";
+import Markdown from "react-markdown";
+import { Send, Bot, User, Sparkles } from "lucide-react";
+import { ChatMessage } from "../types";
 
 interface DecisionCockpitProps {
   messages: ChatMessage[];
@@ -16,7 +17,6 @@ export const DecisionCockpit: React.FC<DecisionCockpitProps> = ({
   onSelectPrompt
 }) => {
   const [inputText, setInputText] = useState("");
-  const [expandedTraceId, setExpandedTraceId] = useState<string | null>(null);
 
   const predefinedPrompts = [
     { label: "Can I buy a $750 laptop?", query: "Can I buy a $750 laptop?" },
@@ -35,10 +35,6 @@ export const DecisionCockpit: React.FC<DecisionCockpitProps> = ({
     onSendMessage(text);
   };
 
-  const toggleTrace = (id: string) => {
-    setExpandedTraceId((prev) => (prev === id ? null : id));
-  };
-
   return (
     <div className="flex flex-col h-[740px] bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
       {/* Header Banner */}
@@ -50,7 +46,7 @@ export const DecisionCockpit: React.FC<DecisionCockpitProps> = ({
           </span>
         </div>
         <div className="text-[11px] font-medium text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
-          Grounded in verified math
+          Smart Personal Finance Companion
         </div>
       </div>
 
@@ -75,7 +71,6 @@ export const DecisionCockpit: React.FC<DecisionCockpitProps> = ({
       <div className="flex-1 overflow-y-auto p-5 space-y-5">
         {messages.map((msg) => {
           const isAssistant = msg.role === "assistant";
-          const isTraceOpen = expandedTraceId === msg.id;
 
           return (
             <div
@@ -97,87 +92,16 @@ export const DecisionCockpit: React.FC<DecisionCockpitProps> = ({
                         : "bg-slate-900 text-white shadow-xs"
                     }`}
                   >
-                    <div className="whitespace-pre-wrap font-normal">
-                      {msg.content}
-                    </div>
+                    {isAssistant ? (
+                      <div className="prose prose-sm prose-slate max-w-none leading-relaxed space-y-2">
+                        <Markdown>{msg.content}</Markdown>
+                      </div>
+                    ) : (
+                      <div className="whitespace-pre-wrap font-normal">
+                        {msg.content}
+                      </div>
+                    )}
                   </div>
-
-                  {/* Clean Collapsed Math Breakdown (Closed by default) */}
-                  {isAssistant && msg.trace && (
-                    <div className="pt-0.5">
-                      <button
-                        onClick={() => toggleTrace(msg.id)}
-                        className="inline-flex items-center space-x-1.5 text-[11px] font-medium text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200/80 px-2.5 py-1 rounded-md transition-colors"
-                        title="Click to view underlying calculation details"
-                      >
-                        <span>⚙️ View math breakdown</span>
-                        {isTraceOpen ? (
-                          <ChevronUp className="w-3 h-3 text-slate-600" />
-                        ) : (
-                          <ChevronDown className="w-3 h-3 text-slate-600" />
-                        )}
-                      </button>
-
-                      {isTraceOpen && (
-                        <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3.5 space-y-3 text-xs shadow-xs max-w-2xl">
-                          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                            <span className="font-semibold text-slate-800 flex items-center space-x-1.5">
-                              <Cpu className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>
-                                {msg.trace.tool_invocation.tool === "simulate_purchase"
-                                  ? "Purchase Affordability Check"
-                                  : msg.trace.tool_invocation.tool === "detect_recurring_and_subscriptions"
-                                  ? "Subscription & Bill Scan"
-                                  : msg.trace.tool_invocation.tool === "detect_anomalies"
-                                  ? "Unusual Charges Scan"
-                                  : msg.trace.tool_invocation.tool === "compare_budgets"
-                                  ? "Budget Pace Check"
-                                  : msg.trace.tool_invocation.tool === "generate_executive_report"
-                                  ? "Monthly Money Summary"
-                                  : msg.trace.tool_invocation.tool === "calculate_opportunity_cost"
-                                  ? "Savings Goal Impact"
-                                  : "Financial Health Check"}
-                              </span>
-                            </span>
-                            <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-medium border border-emerald-200">
-                              Verified
-                            </span>
-                          </div>
-
-                          {/* Computed Financial Numbers */}
-                          <div className="space-y-1.5">
-                            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
-                              Verified Numbers:
-                            </span>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                              {Object.entries(msg.trace.mathematical_observation || {})
-                                .filter(([_, val]) => typeof val === "number" || typeof val === "string")
-                                .slice(0, 6)
-                                .map(([key, val]) => (
-                                  <div key={key} className="p-2 rounded bg-slate-50 border border-slate-100">
-                                    <span className="text-[10px] text-slate-500 font-medium block truncate">
-                                      {key.replace(/_/g, " ").replace(/pct/g, "%").toUpperCase()}
-                                    </span>
-                                    <span className="text-xs font-bold text-slate-800 mt-0.5 block truncate">
-                                      {typeof val === "number"
-                                        ? key.includes("pct") || key.includes("rate")
-                                          ? `${val}%`
-                                          : `$${val.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                        : String(val).replace(/BREACHED/g, "OVER BUDGET").replace(/BREACH_PROJECTED/g, "OVER BUDGET SOON")}
-                                    </span>
-                                  </div>
-                                ))}
-                            </div>
-                          </div>
-
-                          <div className="text-[11px] text-slate-500 flex items-center space-x-1 pt-1 border-t border-slate-100">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                            <span>All calculations computed behind the scenes with exact math.</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
 
                   <div className="text-[10px] text-slate-400 px-1">
                     {msg.timestamp}
@@ -205,7 +129,7 @@ export const DecisionCockpit: React.FC<DecisionCockpitProps> = ({
                 <div className="w-2 h-2 rounded-full bg-slate-400 animate-bounce [animation-delay:0.2s]" />
                 <div className="w-2 h-2 rounded-full bg-slate-400 animate-bounce [animation-delay:0.4s]" />
               </div>
-              <span className="text-slate-500">FinPilot is crunching the numbers...</span>
+              <span className="text-slate-500">FinPilot is calculating the numbers...</span>
             </div>
           </div>
         )}

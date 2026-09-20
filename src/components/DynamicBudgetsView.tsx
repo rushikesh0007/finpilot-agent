@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { AlertCircle, AlertTriangle, CheckCircle, TrendingUp, Flame, ChevronDown, ChevronUp } from "lucide-react";
+import React from "react";
+import { AlertCircle, AlertTriangle, CheckCircle, TrendingUp, Flame } from "lucide-react";
 import { BudgetComparison } from "../types";
 
 interface DynamicBudgetsViewProps {
@@ -8,8 +8,6 @@ interface DynamicBudgetsViewProps {
 }
 
 export const DynamicBudgetsView: React.FC<DynamicBudgetsViewProps> = ({ budgets, loading }) => {
-  const [expandedMathCategory, setExpandedMathCategory] = useState<string | null>(null);
-
   if (loading || !budgets) {
     return (
       <div className="space-y-4">
@@ -94,7 +92,6 @@ export const DynamicBudgetsView: React.FC<DynamicBudgetsViewProps> = ({ budgets,
         {budgets.categories.map((cat) => {
           const progressPercent = Math.min(cat.consumed_pct, 100);
           const isOverburn = cat.velocity_pct > 100;
-          const isMathOpen = expandedMathCategory === cat.category;
 
           return (
             <div
@@ -158,25 +155,6 @@ export const DynamicBudgetsView: React.FC<DynamicBudgetsViewProps> = ({ budgets,
                   </span>
                 </div>
               )}
-
-              {/* Hidden Math Breakdown Accordion (Closed by default) */}
-              <div className="mt-3 pt-2 border-t border-slate-100">
-                <button
-                  onClick={() => setExpandedMathCategory(isMathOpen ? null : cat.category)}
-                  className="inline-flex items-center space-x-1 text-[11px] text-slate-500 hover:text-slate-700 font-medium transition-colors"
-                >
-                  <span>⚙️ View math breakdown</span>
-                  {isMathOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                </button>
-
-                {isMathOpen && (
-                  <div className="mt-2 p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-[11px] text-slate-600 space-y-1">
-                    <div><strong>Daily Pace Formula:</strong> ${cat.spent_mtd.toFixed(2)} spent ÷ {budgets.days_elapsed} days = ${cat.daily_burn.toFixed(2)}/day</div>
-                    <div><strong>Projection Formula:</strong> ${cat.daily_burn.toFixed(2)}/day × {budgets.days_in_month} total days = ${cat.projected_month_end.toFixed(2)}</div>
-                    <div><strong>Headroom Remaining:</strong> ${cat.budget_limit.toFixed(2)} budget - ${cat.spent_mtd.toFixed(2)} spent = ${cat.remaining_headroom.toFixed(2)}</div>
-                  </div>
-                )}
-              </div>
             </div>
           );
         })}

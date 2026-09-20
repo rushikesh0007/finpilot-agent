@@ -306,14 +306,6 @@ with tab_chat:
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
-            if msg.get("trace"):
-                t = msg["trace"]
-                with st.expander("🔍 Agent Transparency & Internal Audit Trace", expanded=False):
-                    st.markdown(f"**Thought Process**:\n`{t['thought_process']}`")
-                    st.markdown(f"**Tool Invoked**: `{t['tool_invocation']['tool']}`")
-                    st.json(t["tool_invocation"]["parameters"])
-                    st.markdown("**Deterministic Mathematical Observation**:")
-                    st.json(t["mathematical_observation"])
 
     # Chat Input
     user_prompt = st.chat_input("Ask FinPilot a decision question...")
@@ -321,30 +313,18 @@ with tab_chat:
         user_prompt = st.session_state.pop("prompt_input")
 
     if user_prompt:
-        st.session_state.messages.append({"role": "user", "content": user_prompt, "trace": None})
+        st.session_state.messages.append({"role": "user", "content": user_prompt})
         with st.chat_message("user"):
             st.markdown(user_prompt)
 
         with st.chat_message("assistant"):
-            with st.status("Executing Deterministic Internal Audit Loop...", expanded=True) as status:
-                st.write("🧠 Formulating hypothesis and identifying tool requirements...")
+            with st.spinner("FinPilot is calculating the numbers..."):
                 result = agent.process_query(user_prompt)
-                st.write(f"⚡ Dispatched tool: `{result['tool_invocation']['tool']}`")
-                st.write("📊 Rigid mathematical observation retrieved without latent arithmetic.")
-                status.update(label="Audit Complete • Recommendation Synthesized", state="complete", expanded=False)
-
             st.markdown(result["synthesized_recommendation"])
-            with st.expander("🔍 Agent Transparency & Internal Audit Trace", expanded=True):
-                st.markdown(f"**Thought Process**:\n`{result['thought_process']}`")
-                st.markdown(f"**Tool Invoked**: `{result['tool_invocation']['tool']}`")
-                st.json(result["tool_invocation"]["parameters"])
-                st.markdown("**Deterministic Mathematical Observation**:")
-                st.json(result["mathematical_observation"])
 
         st.session_state.messages.append({
             "role": "assistant",
-            "content": result["synthesized_recommendation"],
-            "trace": result
+            "content": result["synthesized_recommendation"]
         })
 
 # --- TAB 2: Dynamic Budgets & Velocity ---

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { AlertOctagon, Copy, Sparkles, ShieldAlert, CheckCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { AlertOctagon, Copy, Sparkles, ShieldAlert, CheckCircle } from "lucide-react";
 import { AnomalyReport } from "../types";
 
 interface AnomaliesViewProps {
@@ -10,7 +10,6 @@ interface AnomaliesViewProps {
 export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ anomalies, loading }) => {
   const [disputedIds, setDisputedIds] = useState<string[]>([]);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [showMath, setShowMath] = useState(false);
 
   if (loading || !anomalies) {
     return (
@@ -43,27 +42,12 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({ anomalies, loading
             </p>
           </div>
           <div className="flex items-center space-x-3">
-            <button
-              onClick={() => setShowMath(!showMath)}
-              className="inline-flex items-center space-x-1 text-xs text-slate-500 hover:text-slate-800 bg-slate-100 px-2.5 py-1.5 rounded-lg transition-colors"
-            >
-              <span>⚙️ View math breakdown</span>
-              {showMath ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </button>
             <div className="flex items-center space-x-2 bg-rose-50 text-rose-800 border border-rose-200 px-3 py-1.5 rounded-lg text-xs font-bold">
               <AlertOctagon className="w-4 h-4 text-rose-600" />
               <span>{anomalies.total_anomalies_flagged} Items to Review</span>
             </div>
           </div>
         </div>
-
-        {showMath && (
-          <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600 space-y-1.5">
-            <div><strong>Duplicate Rule:</strong> Charges with exact same dollar amount and merchant within a 48-hour timestamp window.</div>
-            <div><strong>Statistical Outlier Rule:</strong> Amount exceeds Category Average by more than 1.75 standard deviations (Z-score &gt; 1.75).</div>
-            <div><strong>First-Time Store Rule:</strong> Merchant with no previous transaction history exceeding 2x the average daily shopping baseline.</div>
-          </div>
-        )}
       </div>
 
       {actionMessage && (

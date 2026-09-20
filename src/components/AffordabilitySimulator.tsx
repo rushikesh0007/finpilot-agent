@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ShieldCheck, AlertTriangle, AlertOctagon, CheckCircle2, ArrowRight, DollarSign, Calendar, Target, Layers, ChevronDown, ChevronUp } from "lucide-react";
+import { ShieldCheck, AlertTriangle, AlertOctagon, CheckCircle2, ArrowRight, DollarSign, Calendar, Target, Layers } from "lucide-react";
 import { SimulationResult } from "../types";
 
 interface AffordabilitySimulatorProps {
@@ -18,7 +18,6 @@ export const AffordabilitySimulator: React.FC<AffordabilitySimulatorProps> = ({
   const [goalTarget, setGoalTarget] = useState("M4 Max Engineering Workstation");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SimulationResult | null>(initialResult || null);
-  const [showMath, setShowMath] = useState(false);
 
   const handleRunSimulation = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -251,58 +250,6 @@ export const AffordabilitySimulator: React.FC<AffordabilitySimulatorProps> = ({
                     </div>
                   </div>
                 )}
-
-                {/* Collapsed Math Breakdown (Closed by default) */}
-                <div className="pt-1">
-                  <button
-                    onClick={() => setShowMath(!showMath)}
-                    className="inline-flex items-center space-x-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200/80 px-2.5 py-1.5 rounded-md transition-colors"
-                  >
-                    <span>⚙️ View math breakdown</span>
-                    {showMath ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  </button>
-
-                  {showMath && (
-                    <div className="mt-3 space-y-2 text-xs border border-slate-200 bg-slate-50/70 p-3.5 rounded-xl">
-                      <div className="font-semibold text-slate-700 mb-1">Calculation Steps:</div>
-
-                      <div className="flex items-start space-x-2.5 bg-white p-2.5 rounded-lg border border-slate-200">
-                        <div className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
-                          1
-                        </div>
-                        <div className="flex-1">
-                          <span className="font-semibold text-slate-900">Upcoming Bills Before Payday:</span>
-                          <p className="text-slate-600 mt-0.5">{result.stress_test_steps.Step_A_Project_Obligations}</p>
-                        </div>
-                        <span className="font-mono text-slate-500">-$140.00</span>
-                      </div>
-
-                      <div className="flex items-start space-x-2.5 bg-white p-2.5 rounded-lg border border-slate-200">
-                        <div className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
-                          2
-                        </div>
-                        <div className="flex-1">
-                          <span className="font-semibold text-slate-900">Purchase Deduction:</span>
-                          <p className="text-slate-600 mt-0.5">{result.stress_test_steps.Step_B_Deduct_Proposed}</p>
-                        </div>
-                        <span className="font-mono font-semibold text-rose-600">-${result.immediate_deduction.toFixed(2)}</span>
-                      </div>
-
-                      <div className="flex items-start space-x-2.5 bg-white p-2.5 rounded-lg border border-slate-200">
-                        <div className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
-                          3
-                        </div>
-                        <div className="flex-1">
-                          <span className="font-semibold text-slate-900">Emergency Cushion Check ($1,000 floor):</span>
-                          <p className="text-slate-600 mt-0.5">{result.stress_test_steps.Step_C_Check_Liquidity}</p>
-                        </div>
-                        <span className={`font-mono font-bold ${result.buffer_headroom >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-                          {result.buffer_headroom >= 0 ? `+$${result.buffer_headroom.toFixed(2)} headroom` : `-$${Math.abs(result.buffer_headroom).toFixed(2)} deficit`}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
             ) : (
               <div className="h-64 flex flex-col items-center justify-center text-slate-400 text-center p-6">
