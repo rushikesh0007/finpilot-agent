@@ -80,6 +80,8 @@ finpilot/
 
 ## Getting Started
 
+**Live Application:** https://finpilot-agent.streamlit.app/
+
 ### Prerequisites
 - **Node.js**: v18.0.0 or higher
 - **npm** or **bun**
