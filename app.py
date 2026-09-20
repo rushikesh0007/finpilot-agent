@@ -5,8 +5,76 @@ AI Agent Hackathon 2026 - Autonomous Personal Finance Decision-Support Agent
 
 import streamlit as st
 import json
+import calendar
+from datetime import datetime
 from tools import FinanceEngine
 from agent import FinPilotAgent
+from mock_data import RAW_TRANSACTIONS, USER_PROFILE, CURRENT_DATE_STR
+
+try:
+    import pandas as pd
+except ImportError:
+    # Fail-safe lightweight compatibility layer if pandas is not present
+    class SimpleSeries(list):
+        def sum(self):
+            return sum(float(x) for x in self if x is not None)
+        def abs(self):
+            return SimpleSeries([abs(float(x)) for x in self if x is not None])
+        def astype(self, _):
+            return self
+        def dropna(self):
+            return SimpleSeries([x for x in self if x is not None and str(x) != "nan"])
+        @property
+        def iloc(self):
+            class ILoc:
+                def __init__(self, s): self.s = s
+                def __getitem__(self, idx): return self.s[idx]
+            return ILoc(self)
+
+    class SimpleDataFrame:
+        def __init__(self, records=None):
+            if isinstance(records, dict):
+                self._records = []
+            elif isinstance(records, list):
+                self._records = [dict(r) for r in records]
+            else:
+                self._records = []
+            self.columns = list(self._records[0].keys()) if self._records else []
+            self.empty = len(self._records) == 0
+
+        def to_dict(self, orient="records"):
+            return [dict(r) for r in self._records]
+
+        def __len__(self):
+            return len(self._records)
+
+        def __getitem__(self, item):
+            if isinstance(item, str):
+                return SimpleSeries([r.get(item, None) for r in self._records])
+            elif isinstance(item, list):
+                filtered = [r for r, keep in zip(self._records, item) if keep]
+                return SimpleDataFrame(filtered)
+            return self._records[item]
+
+        def __setitem__(self, key, value):
+            if isinstance(value, (list, SimpleSeries)):
+                for r, v in zip(self._records, value):
+                    r[key] = v
+            else:
+                for r in self._records:
+                    r[key] = value
+
+    class PDCompat:
+        DataFrame = SimpleDataFrame
+        def to_numeric(self, series, errors="coerce"):
+            nums = []
+            for s in series:
+                try:
+                    nums.append(float(s))
+                except Exception:
+                    nums.append(0.0)
+            return SimpleSeries(nums)
+    pd = PDCompat()
 
 # Configure Page
 st.set_page_config(
@@ -16,11 +84,21 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize Session State
+# 1. Initialize Active Transactions DataFrame in Session State
+if "transactions_df" not in st.session_state:
+    st.session_state.transactions_df = pd.DataFrame(RAW_TRANSACTIONS)
+
 if "engine" not in st.session_state:
-    st.session_state.engine = FinanceEngine()
+    initial_records = (
+        st.session_state.transactions_df.to_dict("records")
+        if hasattr(st.session_state.transactions_df, "to_dict")
+        else list(st.session_state.transactions_df)
+    )
+    st.session_state.engine = FinanceEngine(transactions=initial_records)
+
 if "agent" not in st.session_state:
     st.session_state.agent = FinPilotAgent(st.session_state.engine)
+
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {
@@ -30,57 +108,168 @@ if "messages" not in st.session_state:
         }
     ]
 
-engine = st.session_state.engine
-agent = st.session_state.agent
-
 # --- Sidebar: Ingestion & Controls ---
 with st.sidebar:
     st.title("🧭 FinPilot Controls")
     st.caption("AI Agent Hackathon 2026 • Autonomous Decision Support")
     
     st.subheader("Data Normalization & Ingestion")
-    uploaded_file = st.file_uploader("Upload Bank/Card Export (CSV/TSV)", type=["csv", "tsv"])
+    uploaded_file = st.file_uploader("Upload Bank/Card Export (CSV/TSV)", type=["csv", "tsv"], key="file_uploader")
     if uploaded_file is not None:
-        raw_text = uploaded_file.getvalue().decode("utf-8")
-        ext = "tsv" if uploaded_file.name.endswith(".tsv") else "csv"
-        res = engine.normalize_and_ingest(raw_text, file_type=ext)
-        if res["status"] == "success":
-            st.success(f"Ingested {res['ingested_count']} transactions with dynamic column normalization!")
-        else:
-            st.error(res["message"])
+        file_signature = f"{uploaded_file.name}_{uploaded_file.size}"
+        if st.session_state.get("last_uploaded_signature") != file_signature:
+            raw_text = uploaded_file.getvalue().decode("utf-8")
+            ext = "tsv" if uploaded_file.name.endswith(".tsv") else "csv"
+
+            # Parse file with normalization engine
+            temp_engine = FinanceEngine(transactions=[])
+            res = temp_engine.normalize_and_ingest(raw_text, file_type=ext)
+
+            if res["status"] == "success" and temp_engine.transactions:
+                # Update st.session_state.transactions_df with newly parsed transactions
+                new_df = pd.DataFrame(temp_engine.transactions)
+                st.session_state.transactions_df = new_df
+                st.session_state.last_uploaded_signature = file_signature
+
+                # Re-initialize the finance calculation engine with this new data
+                new_records = (
+                    new_df.to_dict("records")
+                    if hasattr(new_df, "to_dict")
+                    else list(new_df)
+                )
+                new_engine = FinanceEngine(transactions=new_records)
+
+                # Update liquid balance based on uploaded statement cash flow
+                total_in_val = sum(float(r["amount"]) for r in new_records if float(r.get("amount", 0)) > 0)
+                total_out_val = sum(abs(float(r["amount"])) for r in new_records if float(r.get("amount", 0)) < 0)
+                net_savings_val = total_in_val - total_out_val
+                safety_floor = float(new_engine.profile.get("safety_buffer_minimum", 1000.0))
+                new_engine.profile["current_liquid_balance"] = round(safety_floor + max(0.0, net_savings_val), 2)
+
+                st.session_state.engine = new_engine
+                st.session_state.agent = FinPilotAgent(new_engine)
+                st.session_state.uploaded_success_msg = f"Ingested {res['ingested_count']} transactions with dynamic column normalization!"
+
+                # Trigger immediate rerun
+                if hasattr(st, "rerun"):
+                    st.rerun()
+                elif hasattr(st, "experimental_rerun"):
+                    st.experimental_rerun()
+            else:
+                st.error(res.get("message", "Error parsing statement file."))
+
+    if st.session_state.get("uploaded_success_msg"):
+        st.success(st.session_state.pop("uploaded_success_msg"))
+
+    if st.button("🔄 Reset to Baseline (August 2026)", use_container_width=True):
+        st.session_state.transactions_df = pd.DataFrame(RAW_TRANSACTIONS)
+        st.session_state.engine = FinanceEngine(transactions=RAW_TRANSACTIONS)
+        st.session_state.agent = FinPilotAgent(st.session_state.engine)
+        st.session_state.last_uploaded_signature = None
+        if hasattr(st, "rerun"):
+            st.rerun()
+        elif hasattr(st, "experimental_rerun"):
+            st.experimental_rerun()
 
     st.divider()
     st.subheader("Safety Cushion & Targets")
-    st.metric("Liquid Reserves", f"${engine.profile['current_liquid_balance']:,.2f}")
-    st.metric("Safety Buffer Minimum", f"${engine.profile['safety_buffer_minimum']:,.2f}")
-    st.metric("Next Paycheck", engine.profile["next_paycheck_date"])
+    st.metric("Liquid Reserves", f"${st.session_state.engine.profile['current_liquid_balance']:,.2f}")
+    st.metric("Safety Buffer Minimum", f"${st.session_state.engine.profile['safety_buffer_minimum']:,.2f}")
+    st.metric("Next Paycheck", st.session_state.engine.profile["next_paycheck_date"])
 
     st.divider()
     if st.button("Generate 1-Click Executive Report", use_container_width=True):
         st.session_state.show_report = True
 
+# -----------------------------------------------------------------------------
+# Reactive Metrics Aggregation computed directly from st.session_state.transactions_df
+# -----------------------------------------------------------------------------
+df = st.session_state.transactions_df
+engine = st.session_state.engine
+agent = st.session_state.agent
+
+# Standardize records from transactions_df
+records = df.to_dict("records") if hasattr(df, "to_dict") else [dict(r) for r in df]
+
+# Dynamically derive the date badge/month header from the date column of active DataFrame
+dates = [str(r.get("date", "")) for r in records if r.get("date")]
+ym_counts = {}
+for d in dates:
+    if len(d) >= 7 and d[4] == "-":
+        ym = d[:7]
+        ym_counts[ym] = ym_counts.get(ym, 0) + 1
+
+if ym_counts:
+    active_ym = sorted(ym_counts.items(), key=lambda x: x[1], reverse=True)[0][0]
+    active_year, active_month = int(active_ym[:4]), int(active_ym[5:7])
+else:
+    active_year, active_month = 2026, 8
+    active_ym = "2026-08"
+
+month_name = calendar.month_name[active_month] if (1 <= active_month <= 12) else "August"
+period_label = f"{month_name} {active_year}"
+
+# Isolate records for active period
+month_records = [r for r in records if str(r.get("date", "")).startswith(active_ym)]
+if not month_records:
+    month_records = records
+
+month_dates = sorted([str(r.get("date", "")) for r in month_records if r.get("date")], reverse=True)
+latest_date_str = month_dates[0] if month_dates else f"{active_year}-{active_month:02d}-15"
+try:
+    days_elapsed = int(latest_date_str.split("-")[2])
+except Exception:
+    days_elapsed = 19
+days_in_month = calendar.monthrange(active_year, active_month)[1]
+
+# 1. Total Income: reactive sum of all inflows (amount > 0)
+income_txs = [r for r in month_records if float(r.get("amount", 0)) > 0]
+total_income = sum(float(r["amount"]) for r in income_txs)
+deposit_count = len(income_txs)
+last_income = sorted(income_txs, key=lambda x: str(x.get("date", "")), reverse=True)[0] if income_txs else None
+if last_income:
+    income_sub = f"+${float(last_income['amount']):,.2f} on {last_income['date']}"
+else:
+    income_sub = f"{deposit_count} credited deposit{'s' if deposit_count != 1 else ''}"
+
+# 2. Total Expenses: reactive sum of all outflows (amount < 0)
+expense_txs = [r for r in month_records if float(r.get("amount", 0)) < 0]
+total_expenses = sum(abs(float(r["amount"])) for r in expense_txs)
+daily_burn = (total_expenses / days_elapsed) if days_elapsed > 0 else 0.0
+
+# 3. Net Savings Rate: (Total Income - Total Expenses) / Total Income
+net_savings = total_income - total_expenses
+savings_rate_pct = round((net_savings / total_income * 100.0), 2) if total_income > 0 else 0.0
+savings_sub = f"${net_savings:,.2f} surplus" if net_savings >= 0 else f"-${abs(net_savings):,.2f} deficit"
+
+# 4. Buffer Headroom: Liquid Reserves - Safety Buffer Minimum
+safety_buffer = float(engine.profile.get("safety_buffer_minimum", 1000.0))
+liquid_balance = float(engine.profile.get("current_liquid_balance", safety_buffer + max(0.0, net_savings)))
+buffer_headroom = round(liquid_balance - safety_buffer, 2)
+
 # --- Main Dashboard Header ---
 st.title("FinPilot: Autonomous Financial Decision-Support Agent")
-st.markdown("*Mathematical determinism in the tools • Autonomous cognitive reasoning in the orchestrator*")
+st.markdown(f"**Active Statement Period**: `{period_label}` (As of {latest_date_str}) • *Mathematical determinism in the tools • Autonomous cognitive reasoning in the orchestrator*")
 
-# Fetch Real-time Engine Metrics
-summary = engine.get_monthly_summary(month=8, year=2026)
+# Top Metric Cards directly bound to reactive aggregations computed from st.session_state.transactions_df
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    st.metric("Total Income (MTD)", f"${total_income:,.2f}", income_sub)
+with col2:
+    st.metric("Total Expenses (MTD)", f"${total_expenses:,.2f}", f"Avg ${daily_burn:,.2f}/day • Day {days_elapsed} of {days_in_month}")
+with col3:
+    st.metric("Net Savings Rate", f"{savings_rate_pct:.2f}%", savings_sub)
+with col4:
+    st.metric("Buffer Headroom", f"${buffer_headroom:,.2f}", f"Above ${safety_buffer:,.0f} Safety Floor", delta_color="normal")
+
+st.divider()
+
+# Fetch Real-time Engine Metrics for Active Period
+summary = engine.get_monthly_summary(month=active_month, year=active_year)
 budgets = engine.compare_budgets()
 anomalies = engine.detect_anomalies()
 recurring = engine.detect_recurring_and_subscriptions()
 opportunity = engine.calculate_opportunity_cost()
-
-# Top Metric Cards
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.metric("Total Income (MTD)", f"${summary['total_income']:,.2f}", "+$3,250 on Aug 15")
-with col2:
-    st.metric("Total Expenses (MTD)", f"${summary['total_expenses']:,.2f}", f"{summary['days_elapsed']} of {summary['days_in_month']} days")
-with col3:
-    st.metric("Net Savings Rate", f"{summary['savings_rate_pct']}%", f"${summary['net_savings']:,.2f} surplus")
-with col4:
-    headroom = summary['buffer_headroom']
-    st.metric("Buffer Headroom", f"${headroom:,.2f}", "Above $1,000 Safety Floor", delta_color="normal")
 
 st.divider()
 

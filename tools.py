@@ -174,10 +174,43 @@ class FinanceEngine:
         # Fallback heuristic
         return "Discretionary"
 
+    def detect_active_period(self) -> Dict[str, Any]:
+        """Dynamically detect dominant year, month, label, and latest date from active transactions."""
+        dates = [str(t.get("date", "")) for t in self.transactions if t.get("date")]
+        if not dates:
+            return {"month": 8, "year": 2026, "label": "August 2026", "as_of_date": CURRENT_DATE_STR}
+
+        ym_counts: Dict[str, int] = {}
+        for d in dates:
+            if len(d) >= 7 and d[4] == "-":
+                ym = d[:7]
+                ym_counts[ym] = ym_counts.get(ym, 0) + 1
+
+        if ym_counts:
+            top_ym = sorted(ym_counts.items(), key=lambda x: x[1], reverse=True)[0][0]
+            year_val, month_val = int(top_ym[:4]), int(top_ym[5:7])
+        else:
+            year_val, month_val = 2026, 8
+
+        month_names = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ]
+        label = f"{month_names[month_val - 1]} {year_val}"
+        sorted_dates = sorted([d for d in dates if d.startswith(f"{year_val}-{month_val:02d}")], reverse=True)
+        latest_date = sorted_dates[0] if sorted_dates else f"{year_val}-{month_val:02d}-15"
+
+        return {
+            "month": month_val,
+            "year": year_val,
+            "label": label,
+            "as_of_date": latest_date
+        }
+
     # --------------------------------------------------------------------------
     # 3. Monthly Financial Summary (Deterministic Math)
     # --------------------------------------------------------------------------
-    def get_monthly_summary(self, month: int = 8, year: int = 2026) -> Dict[str, Any]:
+    def get_monthly_summary(self, month: Optional[int] = None, year: Optional[int] = None) -> Dict[str, Any]:
         """
         Compute month-to-date income, expenses, net savings surplus, and daily burn rate.
 
@@ -185,23 +218,24 @@ class FinanceEngine:
         without modifying or altering baseline accounts.
 
         Args:
-            month (int): Calendar month (1-12). Defaults to 8.
-            year (int): 4-digit calendar year. Defaults to 2026.
+            month (Optional[int]): Calendar month (1-12). If omitted, auto-detected from transactions.
+            year (Optional[int]): 4-digit calendar year. If omitted, auto-detected from transactions.
 
         Returns:
             Dict[str, Any]: A dictionary containing ground-truth financial metrics, liquid balance, and category totals.
         """
         try:
-            # Safe type normalization
+            active_info = self.detect_active_period()
+            # Safe type normalization with auto-detection fallback
             try:
-                month_val = int(month) if month is not None else 8
+                month_val = int(month) if month is not None else active_info["month"]
             except (ValueError, TypeError):
-                month_val = 8
+                month_val = active_info["month"]
 
             try:
-                year_val = int(year) if year is not None else 2026
+                year_val = int(year) if year is not None else active_info["year"]
             except (ValueError, TypeError):
-                year_val = 2026
+                year_val = active_info["year"]
 
             if not (1 <= month_val <= 12):
                 return {"status": "error", "message": f"Month must be between 1 and 12, received: {month}"}
@@ -214,9 +248,19 @@ class FinanceEngine:
             net_savings = total_income - total_expenses
             savings_rate = (net_savings / total_income * 100) if total_income > 0 else 0.0
 
-            # Day burn calculation (Day 19 of 31 for August 2026)
-            day_of_month = self.current_date.day
-            days_in_month = 31
+            # Dynamic calendar calculations
+            import calendar
+            try:
+                days_in_month = calendar.monthrange(year_val, month_val)[1]
+            except Exception:
+                days_in_month = 31
+
+            as_of_date = active_info["as_of_date"] if (year_val == active_info["year"] and month_val == active_info["month"]) else f"{year_val}-{month_val:02d}-19"
+            try:
+                day_of_month = int(as_of_date.split("-")[2])
+            except Exception:
+                day_of_month = self.current_date.day
+
             daily_burn_rate = total_expenses / day_of_month if day_of_month > 0 else 0.0
             projected_month_end_expense = daily_burn_rate * days_in_month
 
@@ -234,7 +278,8 @@ class FinanceEngine:
             return {
                 "status": "success",
                 "period": f"{year_val}-{month_val:02d}",
-                "as_of_date": CURRENT_DATE_STR,
+                "period_label": active_info["label"],
+                "as_of_date": as_of_date,
                 "days_elapsed": day_of_month,
                 "days_in_month": days_in_month,
                 "total_income": round(total_income, 2),
